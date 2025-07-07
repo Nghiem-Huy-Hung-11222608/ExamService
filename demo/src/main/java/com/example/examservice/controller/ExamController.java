@@ -58,4 +58,12 @@ public class ExamController {
     ) {
         return service.attemptExam(examId, dto.userId, dto.answers);
     }
+
+    @GetMapping("/{examId}/attempts/history")
+    public ExamAttemptHistoryDto getExamAttemptHistory(
+            @PathVariable Long examId,
+            @RequestParam String userId
+    ) {
+        return service.getExamAttemptHistory(examId, userId);
+    }
 }

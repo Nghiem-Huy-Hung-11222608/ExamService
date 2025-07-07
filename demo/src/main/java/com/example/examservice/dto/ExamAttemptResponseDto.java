@@ -8,4 +8,5 @@ public class ExamAttemptResponseDto {
     public List<Integer> userAnswers;
     public List<Integer> correctAnswers;
     public int triesLeft;
+    public List<QuestionFeedbackDto> questionFeedbacks;
 }

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @Service
 public class ExamService {
@@ -27,7 +28,12 @@ public class ExamService {
         ExamDto dto = new ExamDto();
         dto.id = exam.getId();
         dto.title = exam.getTitle();
-        dto.questions = exam.getQuestions() != null ? exam.getQuestions().stream().map(this::toQuestionDto).collect(Collectors.toList()) : List.of();
+        dto.durationMinutes = exam.getDurationMinutes();
+        dto.location = exam.getLocation();
+        dto.timeslot = exam.getTimeslot();
+        dto.questions = exam.getQuestions() != null
+                ? exam.getQuestions().stream().map(this::toQuestionDto).collect(Collectors.toList())
+                : List.of();
         return dto;
     }
 
@@ -36,14 +42,16 @@ public class ExamService {
         dto.id = q.getId();
         dto.text = q.getText();
         dto.choices = q.getChoices();
-        // Only for admin/creation
-        // dto.correctAnswerIndex = q.getCorrectAnswerIndex();
+        dto.correctAnswerIndex = q.getCorrectAnswerIndex();
         return dto;
     }
 
     public ExamDto createExam(ExamDto dto) {
         Exam exam = new Exam();
         exam.setTitle(dto.title);
+        exam.setDurationMinutes(dto.durationMinutes);
+        exam.setLocation(dto.location);
+        exam.setTimeslot(dto.timeslot);
         if (dto.questions != null) {
             List<Question> questions = dto.questions.stream().map(qdto -> {
                 Question q = new Question();
@@ -125,6 +133,45 @@ public class ExamService {
         resp.userAnswers = attempt.getAnswers();
         resp.correctAnswers = questions.stream().map(Question::getCorrectAnswerIndex).collect(Collectors.toList());
         resp.triesLeft = Math.max(0, 3 - attempt.getTries());
+
+        // Populate per-question feedbacks
+        resp.questionFeedbacks = new ArrayList<>();
+        List<List<String>> choicesList = questions.stream()
+                .map(Question::getChoices)
+                .collect(Collectors.toList());
+
+        for (int i = 0; i < questions.size(); i++) {
+            Question q = questions.get(i);
+            QuestionFeedbackDto fb = new QuestionFeedbackDto();
+            fb.questionId = q.getId();
+            fb.questionText = q.getText();
+            fb.correctAnswerIndex = q.getCorrectAnswerIndex();
+            fb.correctAnswerText = q.getChoices().get(q.getCorrectAnswerIndex());
+            if (i < attempt.getAnswers().size()) {
+                fb.chosenAnswerIndex = attempt.getAnswers().get(i);
+                fb.chosenAnswerText = q.getChoices().get(fb.chosenAnswerIndex);
+                fb.correct = fb.chosenAnswerIndex.equals(fb.correctAnswerIndex);
+            } else {
+                fb.chosenAnswerIndex = null;
+                fb.chosenAnswerText = null;
+                fb.correct = false;
+            }
+            resp.questionFeedbacks.add(fb);
+        }
         return resp;
+    }
+
+    public ExamAttemptHistoryDto getExamAttemptHistory(Long examId, String userId) {
+        List<ExamAttempt> attempts = attemptRepository.findByExamIdAndUserIdOrderByCreatedAtAsc(examId, userId);
+        Exam exam = examRepository.findById(examId).orElseThrow();
+        List<Question> questions = exam.getQuestions();
+
+        List<ExamAttemptResponseDto> history = attempts.stream()
+                .map(attempt -> toAttemptResponseDto(attempt, questions))
+                .collect(Collectors.toList());
+
+        ExamAttemptHistoryDto dto = new ExamAttemptHistoryDto();
+        dto.attempts = history;
+        return dto;
     }
 }
