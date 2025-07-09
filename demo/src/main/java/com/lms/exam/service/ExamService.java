@@ -3,13 +3,6 @@ package com.lms.exam.service;
 import com.lms.exam.dto.*;
 import com.lms.exam.model.*;
 import com.lms.exam.repository.*;
-import com.lms.exam.dto.*;
-import com.lms.exam.model.Exam;
-import com.lms.exam.model.ExamAttempt;
-import com.lms.exam.model.Question;
-import com.lms.exam.repository.ExamAttemptRepository;
-import com.lms.exam.repository.ExamRepository;
-import com.lms.exam.repository.QuestionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,38 +25,40 @@ public class ExamService {
     // Map Exam to DTO
     private ExamDto toExamDto(Exam exam) {
         ExamDto dto = new ExamDto();
-        dto.id = exam.getId();
-        dto.title = exam.getTitle();
-        dto.durationMinutes = exam.getDurationMinutes();
-        dto.location = exam.getLocation();
-        dto.timeslot = exam.getTimeslot();
-        dto.questions = exam.getQuestions() != null
-                ? exam.getQuestions().stream().map(this::toQuestionDto).collect(Collectors.toList())
-                : List.of();
+        dto.setId(exam.getId());
+        dto.setTitle(exam.getTitle());
+        dto.setDurationMinutes(exam.getDurationMinutes());
+        dto.setLocation(exam.getLocation());
+        dto.setTimeslot(exam.getTimeslot());
+        dto.setQuestions(
+                exam.getQuestions() != null
+                        ? exam.getQuestions().stream().map(this::toQuestionDto).collect(Collectors.toList())
+                        : List.of()
+        );
         return dto;
     }
 
     private QuestionDto toQuestionDto(Question q) {
         QuestionDto dto = new QuestionDto();
-        dto.id = q.getId();
-        dto.text = q.getText();
-        dto.choices = q.getChoices();
-        dto.correctAnswerIndex = q.getCorrectAnswerIndex();
+        dto.setId(q.getId());
+        dto.setText(q.getText());
+        dto.setChoices(q.getChoices());
+        dto.setCorrectAnswerIndex(q.getCorrectAnswerIndex());
         return dto;
     }
 
     public ExamDto createExam(ExamDto dto) {
         Exam exam = new Exam();
-        exam.setTitle(dto.title);
-        exam.setDurationMinutes(dto.durationMinutes);
-        exam.setLocation(dto.location);
-        exam.setTimeslot(dto.timeslot);
-        if (dto.questions != null) {
-            List<Question> questions = dto.questions.stream().map(qdto -> {
+        exam.setTitle(dto.getTitle());
+        exam.setDurationMinutes(dto.getDurationMinutes());
+        exam.setLocation(dto.getLocation());
+        exam.setTimeslot(dto.getTimeslot());
+        if (dto.getQuestions() != null) {
+            List<Question> questions = dto.getQuestions().stream().map(qdto -> {
                 Question q = new Question();
-                q.setText(qdto.text);
-                q.setChoices(qdto.choices);
-                q.setCorrectAnswerIndex(qdto.correctAnswerIndex);
+                q.setText(qdto.getText());
+                q.setChoices(qdto.getChoices());
+                q.setCorrectAnswerIndex(qdto.getCorrectAnswerIndex());
                 q.setExam(exam);
                 return q;
             }).collect(Collectors.toList());
@@ -88,9 +83,9 @@ public class ExamService {
     public QuestionDto addQuestion(Long examId, QuestionDto qdto) {
         Exam exam = examRepository.findById(examId).orElseThrow();
         Question q = new Question();
-        q.setText(qdto.text);
-        q.setChoices(qdto.choices);
-        q.setCorrectAnswerIndex(qdto.correctAnswerIndex);
+        q.setText(qdto.getText());
+        q.setChoices(qdto.getChoices());
+        q.setCorrectAnswerIndex(qdto.getCorrectAnswerIndex());
         q.setExam(exam);
         Question saved = questionRepository.save(q);
         return toQuestionDto(saved);
@@ -134,36 +129,33 @@ public class ExamService {
 
     private ExamAttemptResponseDto toAttemptResponseDto(ExamAttempt attempt, List<Question> questions) {
         ExamAttemptResponseDto resp = new ExamAttemptResponseDto();
-        resp.attemptId = attempt.getId();
-        resp.score = attempt.getScore();
-        resp.userAnswers = attempt.getAnswers();
-        resp.correctAnswers = questions.stream().map(Question::getCorrectAnswerIndex).collect(Collectors.toList());
-        resp.triesLeft = Math.max(0, 3 - attempt.getTries());
+        resp.setAttemptId(attempt.getId());
+        resp.setScore(attempt.getScore());
+        resp.setUserAnswers(attempt.getAnswers());
+        resp.setCorrectAnswers(questions.stream().map(Question::getCorrectAnswerIndex).collect(Collectors.toList()));
+        resp.setTriesLeft(Math.max(0, 3 - attempt.getTries()));
 
         // Populate per-question feedbacks
-        resp.questionFeedbacks = new ArrayList<>();
-        List<List<String>> choicesList = questions.stream()
-                .map(Question::getChoices)
-                .collect(Collectors.toList());
-
+        List<QuestionFeedbackDto> feedbacks = new ArrayList<>();
         for (int i = 0; i < questions.size(); i++) {
             Question q = questions.get(i);
             QuestionFeedbackDto fb = new QuestionFeedbackDto();
-            fb.questionId = q.getId();
-            fb.questionText = q.getText();
-            fb.correctAnswerIndex = q.getCorrectAnswerIndex();
-            fb.correctAnswer = q.getChoices().get(q.getCorrectAnswerIndex());
+            fb.setQuestionId(q.getId());
+            fb.setQuestionText(q.getText());
+            fb.setCorrectAnswerIndex(q.getCorrectAnswerIndex());
+            fb.setCorrectAnswerText(q.getChoices().get(q.getCorrectAnswerIndex()));
             if (i < attempt.getAnswers().size()) {
-                fb.chosenAnswerIndex = attempt.getAnswers().get(i);
-                fb.chosenAnswer = q.getChoices().get(fb.chosenAnswerIndex);
-                fb.correct = fb.chosenAnswerIndex.equals(fb.correctAnswerIndex);
+                fb.setChosenAnswerIndex(attempt.getAnswers().get(i));
+                fb.setChosenAnswerText(q.getChoices().get(fb.getChosenAnswerIndex()));
+                fb.setCorrect(fb.getChosenAnswerIndex().equals(fb.getCorrectAnswerIndex()));
             } else {
-                fb.chosenAnswerIndex = null;
-                fb.chosenAnswer = null;
-                fb.correct = false;
+                fb.setChosenAnswerIndex(null);
+                fb.setChosenAnswerText(null);
+                fb.setCorrect(false);
             }
-            resp.questionFeedbacks.add(fb);
+            feedbacks.add(fb);
         }
+        resp.setQuestionFeedbacks(feedbacks);
         return resp;
     }
 
@@ -177,7 +169,7 @@ public class ExamService {
                 .collect(Collectors.toList());
 
         ExamAttemptHistoryDto dto = new ExamAttemptHistoryDto();
-        dto.attempts = history;
+        dto.setAttempts(history);
         return dto;
     }
 }
